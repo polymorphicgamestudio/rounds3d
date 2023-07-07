@@ -5,7 +5,6 @@ pub fn build(b: *std.Build) !void {
     const optimize = b.standardOptimizeOption(.{});
 
     const zlm = b.dependency("zlm", .{});
-
     const exe = b.addExecutable(.{
         .name = "rounds3d",
         .root_source_file = .{ .path = "src/main.zig" },
@@ -15,18 +14,13 @@ pub fn build(b: *std.Build) !void {
     exe.addModule("zlm", zlm.module("zlm"));
     exe.addCSourceFile("../glad/src/glad.c", &[_][]const u8{"-std=c99"});
 
-    // exe.addIncludePath("../glew-2.1.0-win32/glew-2.1.0/include");
     exe.addIncludePath("../glad/include");
     exe.addIncludePath("../glfw-3.3.8.bin.WIN64/include");
 
     exe.linkLibC();
-    exe.linkLibCpp();
 
     exe.addLibraryPath("../glfw-3.3.8.bin.WIN64/lib-mingw-w64");
     exe.linkSystemLibrary("glfw3");
-
-    // exe.addLibraryPath("../glew-2.1.0-win32/glew-2.1.0/bin/Release/Win32");
-    // exe.linkSystemLibrary("glew32");
 
     exe.addLibraryPath("C:/Windows/System32");
     exe.linkSystemLibrary("gdi32");
