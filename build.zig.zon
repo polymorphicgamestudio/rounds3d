@@ -1,0 +1,10 @@
+.{
+	.name = "rounds3d",
+	.version = "0.0.1-alpha",
+	.dependencies = .{
+		.zlm = .{
+			.url = "https://github.com/ziglibs/zlm/archive/dce0e8ead4b14b2105076fad9cbc43bbdf439c21.tar.gz",		
+			.hash = "1220e50f6c7a0d094dbe6d21798c63dc564351d1e0b5d130c42c3a9ef0660b1af42d",		
+		},		
+	},
+}
