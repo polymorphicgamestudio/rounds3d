@@ -1,14 +1,28 @@
-const c = @cImport({
-    @cInclude("glad/glad.h");
-    @cInclude("GLFW/glfw3.h");
-});
+const c = @import("c_imports.zig");
 const zlm = @import("zlm");
 const std = @import("std");
 
+const Camera = @import("Camera.zig");
+
 const fov = 110.0;
+const start_width = 1920;
+const start_height = 1080;
+
+var display_width: c_int = start_width;
+var display_height: c_int = start_height;
+var mouse_x = @as(f32, @floatFromInt(@divFloor(start_width, 2)));
+var mouse_y = @as(f32, @floatFromInt(@divFloor(start_height, 2)));
+
+fn mouseCallback(window: ?*c.GLFWwindow, mouse_x_: f64, mouse_y_: f64) callconv(.C) void {
+    _ = window;
+    mouse_x = @as(f32, @floatCast(mouse_x_));
+    mouse_y = @as(f32, @floatCast(mouse_y_));
+}
 
 fn framebufferSizeCallback(window: ?*c.GLFWwindow, width: c_int, height: c_int) callconv(.C) void {
     _ = window;
+    display_width = width;
+    display_height = height;
     c.glViewport(0, 0, width, height);
 }
 
@@ -22,14 +36,11 @@ fn glfwGetProcAddressWrapper(proc_name: [*:0]const u8) callconv(.C) ?*anyopaque 
 }
 
 pub fn main() void {
-    _ = c.glfwSetErrorCallback(errorCallback);
-
     if (c.glfwInit() == c.GL_FALSE) {
         std.debug.print("Failed to initialize GLFW\n", .{});
         std.process.exit(1);
     }
     defer c.glfwTerminate();
-
     c.glfwWindowHint(c.GLFW_CONTEXT_VERSION_MAJOR, 4);
     c.glfwWindowHint(c.GLFW_CONTEXT_VERSION_MINOR, 6);
     c.glfwWindowHint(c.GLFW_OPENGL_PROFILE, c.GLFW_OPENGL_CORE_PROFILE);
@@ -40,18 +51,25 @@ pub fn main() void {
     }
 
     c.glfwMakeContextCurrent(window);
+    _ = c.glfwSetErrorCallback(errorCallback);
     _ = c.glfwSetFramebufferSizeCallback(window, framebufferSizeCallback);
+    _ = c.glfwSetCursorPosCallback(window, mouseCallback);
 
+    // Capture mouse (lock it to the center of window)
+    c.glfwSetInputMode(window, c.GLFW_CURSOR, c.GLFW_CURSOR_DISABLED);
+
+    // Load gl function pointers
     if (c.gladLoadGLLoader(@as(c.GLADloadproc, @ptrCast(&glfwGetProcAddressWrapper))) == 0) {
         std.debug.panic("gladLoadGLLoader() failed\n", .{});
     }
 
-    // Get version info
+    // Print out graphics being used and OpenGL version
     const renderer = c.glGetString(c.GL_RENDERER);
     const version = c.glGetString(c.GL_VERSION);
     std.debug.print("Renderer: {s}\n", .{renderer});
     std.debug.print("OpenGL version supported: {s}\n", .{version});
 
+    c.glEnable(c.GL_CULL_FACE);
     c.glEnable(c.GL_DEPTH_TEST);
     c.glDepthFunc(c.GL_LESS);
 
@@ -92,45 +110,63 @@ pub fn main() void {
     ;
     var vs = c.glCreateShader(c.GL_VERTEX_SHADER);
     c.glShaderSource(vs, 1, @as([*c]const [*c]const u8, @ptrCast(&vertex_shader)), null);
+    c.glCompileShader(vs);
+
     var fs = c.glCreateShader(c.GL_FRAGMENT_SHADER);
     c.glShaderSource(fs, 1, @as([*c]const [*c]const u8, @ptrCast(&fragment_shader)), null);
+    c.glCompileShader(fs);
 
     var shader_program = c.glCreateProgram();
     c.glAttachShader(shader_program, fs);
     c.glAttachShader(shader_program, vs);
     c.glLinkProgram(shader_program);
 
-    var camera_pos = zlm.Vec3.new(0, 0, 0);
-    var camera_target = zlm.Vec3.zero;
-    var camera_direction = zlm.Vec3.normalize(zlm.Vec3.sub(camera_pos, camera_target));
+    c.glDeleteShader(vs);
+    c.glDeleteShader(fs);
 
-    var up = zlm.Vec3.new(0, 1, 0);
-    var camera_right = zlm.Vec3.normalize(zlm.Vec3.cross(up, camera_direction));
-    var camera_up = zlm.Vec3.cross(camera_direction, camera_right);
-
-    var camera_forward = zlm.Vec3.new(0, 0, -1);
-
-    var model = zlm.Mat4.identity;
-    c.glUniformMatrix4fv(c.glGetUniformLocation(shader_program, "model"), 1, c.GL_FALSE, &model.fields[0][0]);
-
-    var projection = zlm.Mat4.createPerspective(zlm.toRadians(fov), 1920 / 1080, 0.1, 100);
-    c.glUniformMatrix4fv(c.glGetUniformLocation(shader_program, "projection"), 1, c.GL_FALSE, &projection.fields[0][0]);
-
-    var view = zlm.Mat4.createLookAt(camera_pos, zlm.Vec3.add(camera_pos, camera_forward), camera_up);
-    c.glUniformMatrix4fv(c.glGetUniformLocation(shader_program, "view"), 1, c.GL_FALSE, &view.fields[0][0]);
+    var last_time = c.glfwGetTime();
+    var prev_mouse_x = mouse_x;
+    var prev_mouse_y = mouse_y;
+    var camera = Camera{
+        .pos = zlm.Vec3.new(0.0, 0.0, 3.0),
+        .world_up = zlm.Vec3.new(0.0, 1.0, 0.0),
+        .yaw = -90.0,
+        .pitch = 0,
+    };
+    camera.updateCameraVectors();
 
     while (c.glfwWindowShouldClose(window) == 0) {
+        const d_time = c.glfwGetTime() - last_time;
+        _ = d_time;
+
         c.glfwPollEvents();
         if (c.glfwGetKey(window, c.GLFW_KEY_ESCAPE) == c.GLFW_PRESS) {
             c.glfwSetWindowShouldClose(window, c.GLFW_TRUE);
         }
 
+        var d_mouse_x = mouse_x - prev_mouse_x;
+        var d_mouse_y = mouse_y - prev_mouse_y;
+
+        camera.processMouseMove(d_mouse_x, d_mouse_y);
+        std.debug.print("{d},{d},{d}\n", .{ camera.forward.x, camera.forward.y, camera.forward.z });
+
+        prev_mouse_x = mouse_x;
+        prev_mouse_y = mouse_y;
+
         c.glClear(c.GL_COLOR_BUFFER_BIT | c.GL_DEPTH_BUFFER_BIT);
         c.glUseProgram(shader_program);
         c.glBindVertexArray(vao);
 
-        c.glDrawArrays(c.GL_TRIANGLES, 0, 3);
+        var model = zlm.Mat4.identity;
+        c.glUniformMatrix4fv(c.glGetUniformLocation(shader_program, "model"), 1, c.GL_FALSE, &model.fields[0][0]);
 
+        var projection = zlm.Mat4.createPerspective(zlm.toRadians(fov), @as(f32, @floatFromInt(@divTrunc(display_width, display_height))), 0.1, 100);
+        c.glUniformMatrix4fv(c.glGetUniformLocation(shader_program, "projection"), 1, c.GL_FALSE, &projection.fields[0][0]);
+
+        var view = zlm.Mat4.createLookAt(camera.pos, zlm.Vec3.add(camera.pos, camera.forward), camera.up);
+        c.glUniformMatrix4fv(c.glGetUniformLocation(shader_program, "view"), 1, c.GL_FALSE, &view.fields[0][0]);
+
+        c.glDrawArrays(c.GL_TRIANGLES, 0, 3);
         c.glfwSwapBuffers(window);
     }
 
