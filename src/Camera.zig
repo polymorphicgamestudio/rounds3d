@@ -22,6 +22,32 @@ pub fn processMouseMove(self: *Self, d_mouse_x: f32, d_mouse_y: f32) void {
     self.updateCameraVectors();
 }
 
+fn moveForward(self: *Self, distance: f32) void {
+    var forward = zlm.Vec3{ .x = self.forward.x, .y = 0, .z = self.forward.z };
+    forward = zlm.Vec3.normalize(forward);
+    forward = zlm.Vec3.scale(forward, distance);
+    self.pos = zlm.Vec3.add(self.pos, forward);
+}
+
+fn moveRight(self: *Self, distance: f32) void {
+    var right = zlm.Vec3{ .x = self.right.x, .y = 0, .z = self.right.z };
+    right = zlm.Vec3.normalize(right);
+    right = zlm.Vec3.scale(right, distance);
+    self.pos = zlm.Vec3.add(self.pos, right);
+}
+
+fn moveUp(self: *Self, distance: f32) void {
+    var up = zlm.Vec3.normalize(self.up);
+    up = zlm.Vec3.scale(up, distance);
+    self.pos = zlm.Vec3.add(self.pos, up);
+}
+
+pub fn updatePos(self: *Self, move: zlm.Vec3) void {
+    self.moveRight(move.x);
+    self.moveUp(move.y);
+    self.moveForward(move.z);
+}
+
 /// Updates camera's forward, right, and up vectors.
 pub fn updateCameraVectors(self: *Self) void {
     // Update forward vector
