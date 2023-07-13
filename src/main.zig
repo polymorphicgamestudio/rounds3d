@@ -136,6 +136,13 @@ pub fn main() void {
     };
     camera.updateCameraVectors();
 
+    const ai_scene = c.aiImportFile("test_asset.dae", c.aiProcess_CalcTangentSpace |
+        c.aiProcess_Triangulate |
+        c.aiProcess_JoinIdenticalVertices |
+        c.aiProcess_SortByPType);
+
+    c.aiReleaseImport(ai_scene);
+
     while (c.glfwWindowShouldClose(window) == 0) {
         const now = @as(f32, @floatCast(c.glfwGetTime()));
         const d_time = now - last_time;

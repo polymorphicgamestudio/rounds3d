@@ -1,0 +1,3 @@
+[submodule "libs/zig-assimp"]
+	path = libs/zig-assimp
+	url = git@github.com:cabarger/zig-assimp.git
