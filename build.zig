@@ -16,12 +16,12 @@ pub fn build(b: *std.Build) !void {
     exe.addModule("zlm", zlm.module("zlm"));
 
     // Compile glad and add include path
-    exe.addIncludePath(srcdir ++ "/libs/glad/include");
-    exe.addCSourceFile(srcdir ++ "/libs/glad/src/glad.c", &[_][]const u8{"-std=c99"});
+    exe.addIncludePath(srcdir ++ "/../rounds3d-non-source/foreign/glad/include");
+    exe.addCSourceFile(srcdir ++ "/../rounds3d-non-source/foreign/glad/src/glad.c", &[_][]const u8{"-std=c99"});
 
     // Link against glfw and deps, add include path
-    exe.addIncludePath(srcdir ++ "/external/glfw-3.3.8.bin.WIN64/include");
-    exe.addLibraryPath(srcdir ++ "/external/glfw-3.3.8.bin.WIN64/lib-mingw-w64");
+    exe.addIncludePath(srcdir ++ "/../rounds3d-non-source/foreign/glfw-3.3.8.bin.WIN64/include");
+    exe.addLibraryPath(srcdir ++ "/../rounds3d-non-source/foreign/glfw-3.3.8.bin.WIN64/lib-mingw-w64");
     exe.linkLibC();
     exe.linkSystemLibrary("glfw3");
     exe.linkSystemLibrary("gdi32");
