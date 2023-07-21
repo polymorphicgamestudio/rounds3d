@@ -1,5 +1,5 @@
 const std = @import("std");
-const Assimp = @import("libs/zig-assimp/Sdk.zig");
+const rl = @import("libs/raylib/src/build.zig");
 
 pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
@@ -16,12 +16,9 @@ pub fn build(b: *std.Build) !void {
     const zlm = b.dependency("zlm", .{});
     exe.addModule("zlm", zlm.module("zlm"));
 
-    // Assimp
-    var formats = Assimp.FormatSet.empty;
-    formats = Assimp.FormatSet.add(formats, .Collada);
-    const sdk = Assimp.init(b);
-    sdk.addTo(exe, .static, formats);
-    exe.addIncludePath(srcdir ++ "/libs/zig-assimp/vendor/include");
+    // cgltf
+    exe.addCSourceFile(srcdir ++ "/src/cgltf.c", &[_][]const u8{"-std=c99"});
+    exe.addIncludePath(srcdir ++ "/libs/cgltf");
 
     // Compile glad and add include path
     exe.addIncludePath(srcdir ++ "/../rounds3d-non-source/foreign/glad/include");
@@ -30,11 +27,12 @@ pub fn build(b: *std.Build) !void {
     // Link against glfw and deps, add include path
     exe.addIncludePath(srcdir ++ "/../rounds3d-non-source/foreign/glfw-3.3.8.bin.WIN64/include");
     exe.addLibraryPath(srcdir ++ "/../rounds3d-non-source/foreign/glfw-3.3.8.bin.WIN64/lib-mingw-w64");
-    exe.linkLibC();
-    exe.linkLibCpp();
     exe.linkSystemLibrary("glfw3");
     exe.linkSystemLibrary("gdi32");
     exe.linkSystemLibrary("opengl32");
+
+    exe.linkLibC();
+    exe.linkLibCpp();
 
     b.installArtifact(exe);
 

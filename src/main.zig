@@ -136,12 +136,23 @@ pub fn main() void {
     };
     camera.updateCameraVectors();
 
-    const ai_scene = c.aiImportFile("test_asset.dae", c.aiProcess_CalcTangentSpace |
-        c.aiProcess_Triangulate |
-        c.aiProcess_JoinIdenticalVertices |
-        c.aiProcess_SortByPType);
+    var options = std.mem.zeroes(c.cgltf_options);
+    var data: ?*c.cgltf_data = null;
+    var result = c.cgltf_parse_file(&options, "testmodel.glb", &data);
+    defer c.cgltf_free(data);
 
-    c.aiReleaseImport(ai_scene);
+    if (result == c.cgltf_result_success)
+        result = c.cgltf_load_buffers(&options, data, "delme.glf");
+
+    if (result == c.cgltf_result_success)
+        result = c.cgltf_validate(data);
+
+    std.debug.print("Result: {d}\n", .{result});
+
+    if (result == c.cgltf_result_success) {
+        std.debug.print("Type: {d}\n", .{data.?.file_type});
+        std.debug.print("Meshes: {d}\n", .{data.?.meshes_count});
+    }
 
     while (c.glfwWindowShouldClose(window) == 0) {
         const now = @as(f32, @floatCast(c.glfwGetTime()));
@@ -164,8 +175,6 @@ pub fn main() void {
 
         camera.processMouseMove(d_mouse_x, d_mouse_y);
         camera.updatePos(velocity_this_frame);
-
-        std.debug.print("{d},{d},{d}\n", .{ camera.pos.x, camera.pos.y, camera.pos.z });
 
         prev_mouse_x = mouse_x;
         prev_mouse_y = mouse_y;
