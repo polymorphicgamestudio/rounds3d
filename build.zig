@@ -1,5 +1,4 @@
 const std = @import("std");
-const rl = @import("libs/raylib/src/build.zig");
 
 pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
@@ -17,17 +16,24 @@ pub fn build(b: *std.Build) !void {
     exe.addModule("zlm", zlm.module("zlm"));
 
     // cgltf
-    exe.addCSourceFile(srcdir ++ "/src/cgltf.c", &[_][]const u8{"-std=c99"});
-    exe.addIncludePath(srcdir ++ "/libs/cgltf");
+    exe.addCSourceFile(.{
+        .file = .{ .path = srcdir ++ "/src/cgltf.c" },
+        .flags = &[_][]const u8{"-std=c99"},
+    });
+    exe.addIncludePath(.{ .path = srcdir ++ "/libs/cgltf" });
 
     // Compile glad and add include path
-    exe.addIncludePath(srcdir ++ "/../rounds3d-non-source/foreign/glad/include");
-    exe.addCSourceFile(srcdir ++ "/../rounds3d-non-source/foreign/glad/src/glad.c", &[_][]const u8{"-std=c99"});
+    exe.addIncludePath(.{ .path = srcdir ++ "/../rounds3d-non-source/foreign/glad/include" });
+    exe.addCSourceFile(.{
+        .file = .{ .path = srcdir ++ "/../rounds3d-non-source/foreign/glad/src/glad.c" },
+        .flags = &[_][]const u8{"-std=c99"},
+    });
 
     // Link against glfw and deps, add include path
-    exe.addIncludePath(srcdir ++ "/../rounds3d-non-source/foreign/glfw-3.3.8.bin.WIN64/include");
-    exe.addLibraryPath(srcdir ++ "/../rounds3d-non-source/foreign/glfw-3.3.8.bin.WIN64/lib-mingw-w64");
-    exe.linkSystemLibrary("glfw3");
+    exe.addIncludePath(.{ .path = srcdir ++ "/../rounds3d-non-source/foreign/glfw-3.3.8.bin.WIN64/include" });
+    exe.addLibraryPath(.{ .path = srcdir ++ "/../rounds3d-non-source/foreign/glfw-3.3.8.bin.WIN64/lib-mingw-w64" });
+    exe.addObjectFile(.{ .path = srcdir ++ "/../rounds3d-non-source/foreign/glfw-3.3.8.bin.WIN64/lib-mingw-w64/libglfw3.a" });
+    // exe.linkSystemLibrary("libglfw3");
     exe.linkSystemLibrary("gdi32");
     exe.linkSystemLibrary("opengl32");
 
