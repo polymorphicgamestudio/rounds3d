@@ -7,7 +7,8 @@ const Camera = @import("Camera.zig");
 const fov = 110.0;
 const start_width = 1920;
 const start_height = 1080;
-const move_speed = 2.0;
+const move_speed = 20.0;
+const target_fps = 120.0;
 
 var display_width: c_int = start_width;
 var display_height: c_int = start_height;
@@ -74,22 +75,42 @@ pub fn main() void {
     c.glEnable(c.GL_DEPTH_TEST);
     c.glDepthFunc(c.GL_LESS);
 
-    var points = [_]f32{
+    var triangle_points = [_]f32{
         0,    0.5,  -1,
         0.5,  -0.5, -1,
         -0.5, -0.5, -1,
     };
+    const triangle_colour = [_]f32{ 1.0, 0.0, 0.0, 1.0 };
 
-    var vbo: c.GLuint = 0;
-    c.glGenBuffers(1, &vbo);
-    c.glBindBuffer(c.GL_ARRAY_BUFFER, vbo);
-    c.glBufferData(c.GL_ARRAY_BUFFER, @sizeOf(f32) * points.len, &points, c.GL_STATIC_DRAW);
+    var triangle_vbo: c.GLuint = undefined;
+    c.glGenBuffers(1, &triangle_vbo);
+    c.glBindBuffer(c.GL_ARRAY_BUFFER, triangle_vbo);
+    c.glBufferData(c.GL_ARRAY_BUFFER, @sizeOf(f32) * triangle_points.len, &triangle_points, c.GL_STATIC_DRAW);
 
-    var vao: c.GLuint = 0;
-    c.glGenVertexArrays(1, &vao);
-    c.glBindVertexArray(vao);
+    var triangle_vao: c.GLuint = undefined;
+    c.glGenVertexArrays(1, &triangle_vao);
+    c.glBindVertexArray(triangle_vao);
     c.glEnableVertexAttribArray(0);
-    c.glBindBuffer(c.GL_ARRAY_BUFFER, vbo);
+    c.glBindBuffer(c.GL_ARRAY_BUFFER, triangle_vbo);
+    c.glVertexAttribPointer(0, 3, c.GL_FLOAT, c.GL_FALSE, 0, null);
+
+    var plane_points = [_]f32{ // HACK(caleb): Big triangle
+        0.0,    0.0, -250.0,
+        500.0,  0.0, 250.0,
+        -500.0, 0.0, 250.0,
+    };
+    const plane_colour = [_]f32{ 0.0, 0.4, 0.0, 1.0 };
+
+    var plane_vbo: c.GLuint = undefined;
+    c.glGenBuffers(1, &plane_vbo);
+    c.glBindBuffer(c.GL_ARRAY_BUFFER, plane_vbo);
+    c.glBufferData(c.GL_ARRAY_BUFFER, @sizeOf(f32) * plane_points.len, &plane_points, c.GL_STATIC_DRAW);
+
+    var plane_vao: c.GLuint = undefined;
+    c.glGenVertexArrays(1, &plane_vao);
+    c.glBindVertexArray(plane_vao);
+    c.glEnableVertexAttribArray(0);
+    c.glBindBuffer(c.GL_ARRAY_BUFFER, plane_vbo);
     c.glVertexAttribPointer(0, 3, c.GL_FLOAT, c.GL_FALSE, 0, null);
 
     const vertex_shader =
@@ -105,8 +126,9 @@ pub fn main() void {
     const fragment_shader =
         \\#version 460
         \\out vec4 frag_colour;
+        \\uniform vec4 colour;
         \\void main() {
-        \\    frag_colour = vec4(0.5, 0.0, 0.5, 1.0);
+        \\    frag_colour = colour;
         \\}
     ;
     var vs = c.glCreateShader(c.GL_VERTEX_SHADER);
@@ -125,24 +147,26 @@ pub fn main() void {
     c.glDeleteShader(vs);
     c.glDeleteShader(fs);
 
-    var last_time = @as(f32, @floatCast(c.glfwGetTime()));
+    var last_time: f32 = @floatCast(c.glfwGetTime());
     var prev_mouse_x = mouse_x;
     var prev_mouse_y = mouse_y;
     var camera = Camera{
-        .pos = zlm.Vec3.new(0.0, 0.0, 3.0),
+        .pos = zlm.Vec3.new(0.0, 1.0, 0.0),
         .world_up = zlm.Vec3.new(0.0, 1.0, 0.0),
-        .yaw = 0, //-90.0,
+        .yaw = 0,
         .pitch = 0,
     };
     camera.updateCameraVectors();
+    camera.up = zlm.Vec3.normalize(zlm.Vec3.cross(camera.right, camera.forward));
 
+    // TODO(caleb): asset pipeline
     var options = std.mem.zeroes(c.cgltf_options);
     var data: ?*c.cgltf_data = null;
-    var result = c.cgltf_parse_file(&options, "testmodel.glb", &data);
+    var result = c.cgltf_parse_file(&options, "floor.glb", &data);
     defer c.cgltf_free(data);
 
     if (result == c.cgltf_result_success)
-        result = c.cgltf_load_buffers(&options, data, "delme.glf");
+        result = c.cgltf_load_buffers(&options, data, "floor.glb");
 
     if (result == c.cgltf_result_success)
         result = c.cgltf_validate(data);
@@ -154,10 +178,32 @@ pub fn main() void {
         std.debug.print("Meshes: {d}\n", .{data.?.meshes_count});
     }
 
+    std.debug.print("{s}\n", .{data.?.json});
+
+    // var mesh_index: usize = 0;
+    // while (mesh_index < data.?.meshes_count) : (mesh_index += 1) {
+    //     var primitive_index: usize = 0;
+    //     while (primitive_index < data.?.meshes[mesh_index].primitives_count) : (primitive_index += 1) {
+    //         const prim = &data.?.meshes[mesh_index].primitives[primitive_index];
+    //         var out: [3]c.cgltf_float = undefined;
+    //         _ = c.cgltf_accessor_unpack_floats(prim.indices, &out, out.len);
+    //         std.debug.print("{d:.3}\n", .{out});
+    //         // switch (prim.type) {
+    //         //     c.gl
+    //         //     c.cgltf_primitive_type_triangles => {
+    //         //     },
+    //         //     else => unreachable,
+    //         // }
+    //     }
+    // }
+
     while (c.glfwWindowShouldClose(window) == 0) {
-        const now = @as(f32, @floatCast(c.glfwGetTime()));
+        const now: f32 = @floatCast(c.glfwGetTime());
         const d_time = now - last_time;
         last_time = now;
+        const frame_interval_sec: f32 = 1.0 / target_fps;
+        if (d_time < frame_interval_sec)
+            std.time.sleep(@intFromFloat(d_time * std.time.ns_per_s));
 
         var velocity_this_frame = zlm.Vec3.zero;
 
@@ -181,18 +227,24 @@ pub fn main() void {
 
         c.glClear(c.GL_COLOR_BUFFER_BIT | c.GL_DEPTH_BUFFER_BIT);
         c.glUseProgram(shader_program);
-        c.glBindVertexArray(vao);
 
         var model = zlm.Mat4.identity;
-        c.glUniformMatrix4fv(c.glGetUniformLocation(shader_program, "model"), 1, c.GL_FALSE, &model.fields[0][0]);
-
         var projection = zlm.Mat4.createPerspective(zlm.toRadians(fov), @as(f32, @floatFromInt(@divTrunc(display_width, display_height))), 0.1, 100);
-        c.glUniformMatrix4fv(c.glGetUniformLocation(shader_program, "projection"), 1, c.GL_FALSE, &projection.fields[0][0]);
-
         var view = zlm.Mat4.createLookAt(camera.pos, zlm.Vec3.add(camera.pos, camera.forward), camera.up);
+        c.glUniformMatrix4fv(c.glGetUniformLocation(shader_program, "model"), 1, c.GL_FALSE, &model.fields[0][0]);
+        c.glUniformMatrix4fv(c.glGetUniformLocation(shader_program, "projection"), 1, c.GL_FALSE, &projection.fields[0][0]);
         c.glUniformMatrix4fv(c.glGetUniformLocation(shader_program, "view"), 1, c.GL_FALSE, &view.fields[0][0]);
 
+        // Draw plane
+        c.glUniform4fv(c.glGetUniformLocation(shader_program, "colour"), 1, &plane_colour);
+        c.glBindVertexArray(plane_vao);
         c.glDrawArrays(c.GL_TRIANGLES, 0, 3);
+
+        // Draw triangle
+        c.glUniform4fv(c.glGetUniformLocation(shader_program, "colour"), 1, &triangle_colour);
+        c.glBindVertexArray(triangle_vao);
+        c.glDrawArrays(c.GL_TRIANGLES, 0, 3);
+
         c.glfwSwapBuffers(window);
     }
 
